@@ -56,20 +56,20 @@ void loop(void)
 {
   switch (state) {
     case 0:
-    {
-      if (Serial.available() > 0)
       {
-        int incomingByte = Serial.read();
-        if (incomingByte == 1)
-          state = 2;
+        if (Serial.available() > 0)
+        {
+          int incomingByte = Serial.read();
+          if (incomingByte == 1)
+            state = 2;
+        }
+        else if (micros() - imu_prev_time > imu_dt)
+        {
+          state = 1;
+          imu_prev_time = micros();
+        }
+        break;
       }
-      else if (micros() - imu_prev_time > imu_dt)
-      {
-        state = 1;
-        imu_prev_time = micros();
-      }
-      break;
-    }
 
     case 1:
       {
