@@ -24,21 +24,28 @@ struct __attribute__((__packed__)) CalibrationData
   uint8_t sys, gyro, accel, mag;
 };
 
-/*----- Force Setup -----*/
-// Define the analog pins based on the wiring table
+/*----- Force Flex Setup -----*/
+// Define force pins
 const int forceThumb  = A0;
 const int forceIndex  = A1;
 const int forceMiddle = A12;
 const int forceRing   = A13;
 const int forcePinky  = A4;
 
-const int numFingers = 5;
+// Define flex pins
+const int flexThumb  = A5;
+const int flexIndex  = A6;
+const int flexMiddle = A7;
+const int flexRing   = A8;
+const int flexPinky  = A9;
 
-struct __attribute__((__packed__)) ForceData
+struct __attribute__((__packed__)) ForceFlexData
 {
-  uint8_t fT, fI, fM, fR, fP;
+  uint16_t fT, fI, fM, fR, fP;
+  uint16_t xT, xI, xM, xR, xP;
 };
 
+/*----- Communication Setup -----*/
 // Serial communication bits
 const byte START_BIT_IMU = 0xAA;
 const byte START_BIT_FF = 0xBB;
@@ -82,12 +89,12 @@ void loop(void)
           if (incomingByte == 1)
             state = 2; // IMU calibration status
         }
-        else if (micros() - imu_prev_time > imu_dt)
+        else if (micros() - imu_prev_time >= imu_dt)
         {
           state = 1; // IMU quaternion and acceleration data
           imu_prev_time = micros();
         }
-        else if (micros() - ff_prev_time > ff_dt)
+        else if (micros() - ff_prev_time >= ff_dt)
         {
           state = 3; // Force data
           ff_prev_time = micros();
@@ -114,7 +121,7 @@ void loop(void)
         Serial.write((byte*)&imu_packet, sizeof(imu_packet)); // message
         Serial.write(END_BIT); // end of message
         
-        state = 3;
+        state = 0;
         break;
       }
     case 2: // Write IMU calibration status
@@ -135,18 +142,24 @@ void loop(void)
         state = 0;
         break;
       }
-    case 3: // Write force data
+    case 3: // Write force and flex data
       {
-        ForceData f_packet;
+        ForceFlexData ff_packet;
 
-        f_packet.fT = analogRead(forceThumb);
-        f_packet.fI = analogRead(forceIndex);
-        f_packet.fM = analogRead(forceMiddle);
-        f_packet.fR = analogRead(forceRing);
-        f_packet.fP = analogRead(forcePinky);
+        ff_packet.fT = analogRead(forceThumb);
+        ff_packet.fI = analogRead(forceIndex);
+        ff_packet.fM = analogRead(forceMiddle);
+        ff_packet.fR = analogRead(forceRing);
+        ff_packet.fP = analogRead(forcePinky);
+
+        ff_packet.xT = analogRead(flexThumb);
+        ff_packet.xI = analogRead(flexIndex);
+        ff_packet.xM = analogRead(flexMiddle);
+        ff_packet.xR = analogRead(flexRing);
+        ff_packet.xP = analogRead(flexPinky);
 
         Serial.write(START_BIT_FF); // start of message
-        Serial.write((byte*)&f_packet, sizeof(f_packet)); // message
+        Serial.write((byte*)&ff_packet, sizeof(ff_packet)); // message
         Serial.write(END_BIT); // end of message
 
         state = 0;
