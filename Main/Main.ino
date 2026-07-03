@@ -32,16 +32,19 @@ const int forceMiddle = A12;
 const int forceRing   = A13;
 const int forcePinky  = A4;
 
-// Array for easier iteration
-const int forcePins[] = {forceThumb, forceIndex, forceMiddle, forceRing, forcePinky};
 const int numFingers = 5;
+
+struct __attribute__((__packed__)) ForceData
+{
+  uint8_t fT, fI, fM, fR, fP;
+};
 
 // Serial communication bits
 const byte START_BIT_IMU = 0xAA;
 const byte START_BIT_FF = 0xBB;
 const byte END_BIT = 0x55;
 
-// State machine variable
+// State machine variables
 uint8_t state = 0;
 unsigned long imu_dt = 10000; // us, 100 Hz
 unsigned long imu_prev_time = 0;
@@ -77,16 +80,16 @@ void loop(void)
         {
           int incomingByte = Serial.read();
           if (incomingByte == 1)
-            state = 2;
+            state = 2; // IMU calibration status
         }
         else if (micros() - imu_prev_time > imu_dt)
         {
-          state = 1;
+          state = 1; // IMU quaternion and acceleration data
           imu_prev_time = micros();
         }
         else if (micros() - ff_prev_time > ff_dt)
         {
-          state = 3;
+          state = 3; // Force data
           ff_prev_time = micros();
         }
         break;
@@ -107,7 +110,7 @@ void loop(void)
         imu_packet.ay = accel.y();
         imu_packet.az = accel.z();
 
-        Serial.write(START_BIT_IMU);
+        Serial.write(START_BIT_IMU); // start of message
         Serial.write((byte*)&imu_packet, sizeof(imu_packet)); // message
         Serial.write(END_BIT); // end of message
         
@@ -125,7 +128,7 @@ void loop(void)
         cal_packet.accel = accelerometer;
         cal_packet.mag = magnetometer;
 
-        Serial.write(START_BIT_IMU);
+        Serial.write(START_BIT_IMU); // start of message
         Serial.write((byte*)&cal_packet, sizeof(cal_packet)); // message
         Serial.write(END_BIT); // end of message
 
@@ -134,13 +137,17 @@ void loop(void)
       }
     case 3: // Write force data
       {
-        Serial.write(START_BIT_FF);
-        // Loop through each pin, read the value, and print it
-        for (int i = 0; i < numFingers; i++) {
-          int sensorValue = analogRead(forcePins[i]);
-          Serial.write(sensorValue);
-        }
-        Serial.write(END_BIT);
+        ForceData f_packet;
+
+        f_packet.fT = analogRead(forceThumb);
+        f_packet.fI = analogRead(forceIndex);
+        f_packet.fM = analogRead(forceMiddle);
+        f_packet.fR = analogRead(forceRing);
+        f_packet.fP = analogRead(forcePinky);
+
+        Serial.write(START_BIT_FF); // start of message
+        Serial.write((byte*)&f_packet, sizeof(f_packet)); // message
+        Serial.write(END_BIT); // end of message
 
         state = 0;
         break;
