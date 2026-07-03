@@ -82,15 +82,15 @@ void loop(void)
           if (incomingByte == 1)
             state = 2; // IMU calibration status
         }
-        else if (micros() - imu_prev_time > imu_dt)
+        else if (micros() - imu_prev_time >= imu_dt)
         {
           state = 1; // IMU quaternion and acceleration data
-          imu_prev_time = micros();
+          imu_prev_time += imu_dt;
         }
-        else if (micros() - ff_prev_time > ff_dt)
+        else if (micros() - ff_prev_time >= ff_dt)
         {
           state = 3; // Force data
-          ff_prev_time = micros();
+          ff_prev_time += ff_dt;
         }
         break;
       }
