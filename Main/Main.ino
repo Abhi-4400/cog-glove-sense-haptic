@@ -45,7 +45,8 @@ struct __attribute__((__packed__)) ForceFlexData {
 /*----- Communication Setup -----*/
 // Serial communication bits
 const byte START_BIT_IMU = 0xAA;
-const byte START_BIT_FF = 0xBB;
+const byte START_BIT_CALIB = 0xBB;
+const byte START_BIT_FF = 0xCC;
 const byte END_BIT = 0x55;
 
 /*----- State Machine Setup -----*/
@@ -163,7 +164,7 @@ void sendCalibrationData()
   cal_packet.accel = accelerometer;
   cal_packet.mag = magnetometer;
 
-  Serial.write(START_BIT_IMU);                           // start of message
+  Serial.write(START_BIT_CALIB);                           // start of message
   Serial.write((byte*)&cal_packet, sizeof(cal_packet));  // message
   Serial.write(END_BIT);                                 // end of message
 
