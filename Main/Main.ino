@@ -47,9 +47,7 @@ struct __attribute__((__packed__)) ForceFlexData {
 
 /*----- Communication Setup -----*/
 // Serial communication bits
-const byte START_BIT_IMU = 0xAA;
-const byte START_BIT_CALIB = 0xBB;
-const byte START_BIT_FF = 0xCC;
+const byte START_BIT = 0xAA;
 const byte END_BIT = 0x55;
 
 /*----- State Machine Setup -----*/
@@ -57,9 +55,7 @@ enum SystemState
 {
   STATE_IDLE,
   STATE_DATA_STREAM,
-  STATE_SEND_IMU,
-  STATE_SEND_CALIB,
-  STATE_SEND_FORCE_FLEX
+  STATE_DEBUG
 };
 
 SystemState state = STATE_IDLE;
@@ -93,11 +89,12 @@ void loop(void) {
       break;
 
     case STATE_DATA_STREAM:
-      imu_prev_time = micros();
-      ff_prev_time = micros();
-
       handleSensorStreamState();
       break;
+
+    // case STATE_DEBUG:
+    //   handleDebug();
+    //   break;
   }
 }
 
@@ -107,11 +104,16 @@ void handleIdleState()
   if (Serial.available() > 0) {
     int incomingByte = Serial.read();
     if (incomingByte == 1) {
-      sendCalibrationData();
+      CalibrationData imu_calibration_data;
+      getCalibrationData(imu_calibration_data);
+      sendData(imu_calibration_data);
       return;
     }
 
     if (incomingByte == 2) {
+      imu_prev_time = micros();
+      ff_prev_time = micros();
+
       state = STATE_DATA_STREAM;
       return;
     }
@@ -120,19 +122,20 @@ void handleIdleState()
 
 void handleSensorStreamState()
 {
-  unsigned long currentMicros = micros();
-
-  // If both are ready, IMU triggers first, but Force/Flex will trigger immediately on the very next loop cycle.
-  if (currentMicros - imu_prev_time >= imu_dt) {
-    sendIMUData();
+  unsigned long current_micros = micros();
+  
+  if (current_micros - imu_prev_time >= imu_dt) {
+    IMUData imu_data;
+    getIMUData(imu_data);
+    sendData(imu_data);
     imu_prev_time += imu_dt;
-    return;
   }
 
-  if (currentMicros - ff_prev_time >= ff_dt) {
-    sendForceFlexData();
+  if (current_micros - ff_prev_time >= ff_dt) {
+    ForceFlexData ff_data;
+    getForceFlexData(ff_data);
+    sendData(ff_data);
     ff_prev_time += ff_dt;
-    return;
   }
 
   if (Serial.available() > 0) {
@@ -142,11 +145,18 @@ void handleSensorStreamState()
   }
 }
 
-void sendIMUData()
+template <typename T>
+void sendData(const T& packet)
+{
+  Serial.write(START_BIT);                       // start of message
+  Serial.write((byte*)&packet, sizeof(packet));  // message
+  Serial.write(END_BIT);                         // end of message
+}
+
+void getIMUData(IMUData& imu_packet)
 {
   imu::Quaternion quat = bno.getQuat();
   imu::Vector<3> accel = bno.getVector(Adafruit_BNO055::VECTOR_LINEARACCEL);  // Filtered acceleration data
-  IMUData imu_packet;
 
   imu_packet.qw = quat.w();
   imu_packet.qx = quat.x();
@@ -156,32 +166,21 @@ void sendIMUData()
   imu_packet.ax = accel.x();
   imu_packet.ay = accel.y();
   imu_packet.az = accel.z();
-
-  Serial.write(START_BIT_IMU);                           // start of message
-  Serial.write((byte*)&imu_packet, sizeof(imu_packet));  // message
-  Serial.write(END_BIT);                                 // end of message
 }
 
-void sendCalibrationData()
+void getCalibrationData(CalibrationData& cal_packet)
 {
   uint8_t system, gyroscope, accelerometer, magnetometer;
   bno.getCalibration(&system, &gyroscope, &accelerometer, &magnetometer);
-  CalibrationData cal_packet;
 
   cal_packet.sys = system;
   cal_packet.gyro = gyroscope;
   cal_packet.accel = accelerometer;
   cal_packet.mag = magnetometer;
-
-  Serial.write(START_BIT_CALIB);                         // start of message
-  Serial.write((byte*)&cal_packet, sizeof(cal_packet));  // message
-  Serial.write(END_BIT);                                 // end of message
 }
 
-void sendForceFlexData()
+void getForceFlexData(ForceFlexData& ff_packet)
 {
-  ForceFlexData ff_packet;
-
   ff_packet.fT = analogRead(forceThumb);
   ff_packet.fI = analogRead(forceIndex);
   ff_packet.fM = analogRead(forceMiddle);
@@ -193,8 +192,4 @@ void sendForceFlexData()
   ff_packet.xM = analogRead(flexMiddle);
   ff_packet.xR = analogRead(flexRing);
   ff_packet.xP = analogRead(flexPinky);
-
-  Serial.write(START_BIT_FF);                          // start of message
-  Serial.write((byte*)&ff_packet, sizeof(ff_packet));  // message
-  Serial.write(END_BIT);                               // end of message
 }
