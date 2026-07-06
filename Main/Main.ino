@@ -89,37 +89,25 @@ void setup(void) {
 void loop(void) {
   switch (state) {
     case STATE_IDLE:
-      handleSensorStream();
+      handleIdleState();
       break;
 
     case STATE_DATA_STREAM:
       imu_prev_time = micros();
       ff_prev_time = micros();
-      
-      handleSensorStream();
-      break;
 
-    case STATE_SEND_IMU:  // Write IMU quaternion and acceleration data
-      sendIMUData();
-      break;
-
-    case STATE_SEND_CALIB:  // Write IMU calibration status
-      sendCalibrationData();
-      break;
-
-    case STATE_SEND_FORCE_FLEX:  // Write force and flex data
-      sendForceFlexData();
+      handleSensorStreamState();
       break;
   }
 }
 
 /*----- State Handler Functions -----*/
-void idle()
+void handleIdleState()
 {
   if (Serial.available() > 0) {
     int incomingByte = Serial.read();
     if (incomingByte == 1) {
-      state = STATE_SEND_CALIB;
+      sendCalibrationData();
       return;
     }
 
@@ -130,22 +118,27 @@ void idle()
   }
 }
 
-void handleSensorStream()
+void handleSensorStreamState()
 {
-  
   unsigned long currentMicros = micros();
 
   // If both are ready, IMU triggers first, but Force/Flex will trigger immediately on the very next loop cycle.
   if (currentMicros - imu_prev_time >= imu_dt) {
-    state = STATE_SEND_IMU;
+    sendIMUData();
     imu_prev_time += imu_dt;
     return;
   }
 
   if (currentMicros - ff_prev_time >= ff_dt) {
-    state = STATE_SEND_FORCE_FLEX;
+    sendForceFlexData();
     ff_prev_time += ff_dt;
     return;
+  }
+
+  if (Serial.available() > 0) {
+    if (Serial.read() == 0) {
+      state = STATE_IDLE;
+    }
   }
 }
 
@@ -167,8 +160,6 @@ void sendIMUData()
   Serial.write(START_BIT_IMU);                           // start of message
   Serial.write((byte*)&imu_packet, sizeof(imu_packet));  // message
   Serial.write(END_BIT);                                 // end of message
-
-  state = STATE_DATA_STREAM;
 }
 
 void sendCalibrationData()
@@ -185,8 +176,6 @@ void sendCalibrationData()
   Serial.write(START_BIT_CALIB);                         // start of message
   Serial.write((byte*)&cal_packet, sizeof(cal_packet));  // message
   Serial.write(END_BIT);                                 // end of message
-
-  state = STATE_IDLE;
 }
 
 void sendForceFlexData()
@@ -208,6 +197,4 @@ void sendForceFlexData()
   Serial.write(START_BIT_FF);                          // start of message
   Serial.write((byte*)&ff_packet, sizeof(ff_packet));  // message
   Serial.write(END_BIT);                               // end of message
-
-  state = STATE_DATA_STREAM;
 }
