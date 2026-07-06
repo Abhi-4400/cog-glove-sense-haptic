@@ -38,7 +38,10 @@ const int flexRing = A8;
 const int flexPinky = A9;
 
 struct __attribute__((__packed__)) ForceFlexData {
+  // Force
   uint16_t fT, fI, fM, fR, fP;
+
+  // Flex
   uint16_t xT, xI, xM, xR, xP;
 };
 
@@ -52,13 +55,14 @@ const byte END_BIT = 0x55;
 /*----- State Machine Setup -----*/
 enum SystemState
 {
+  STATE_IDLE,
   STATE_DATA_STREAM,
   STATE_SEND_IMU,
   STATE_SEND_CALIB,
   STATE_SEND_FORCE_FLEX
 };
 
-SystemState state = STATE_DATA_STREAM;
+SystemState state = STATE_IDLE;
 unsigned long imu_dt = 10000;  // us, 100 Hz
 unsigned long imu_prev_time = 0;
 unsigned long ff_dt = 1000;  // us, 1000 Hz
@@ -87,6 +91,10 @@ void setup(void) {
 
 void loop(void) {
   switch (state) {
+    case STATE_IDLE:
+      handleSensorStream();
+      break;
+
     case STATE_DATA_STREAM:
       handleSensorStream();
       break;
@@ -106,20 +114,27 @@ void loop(void) {
 }
 
 /*----- State Handler Functions -----*/
-void handleSensorStream()
+void idle()
 {
-  // 1. Check Serial input independently (highest priority command)
   if (Serial.available() > 0) {
     int incomingByte = Serial.read();
     if (incomingByte == 1) {
       state = STATE_SEND_CALIB;
       return; // Interrupt everything to send calibration
     }
-  } 
+
+    if (incomingByte == 2) {
+      state = STATE_DATA_STREAM;
+      return; // Interrupt everything to send calibration
+    }
+  }
+}
+
+void handleSensorStream()
+{
   
   unsigned long currentMicros = micros();
 
-  // 2. Evaluate timing events
   // If both are ready, IMU triggers first, but Force/Flex will trigger immediately on the very next loop cycle.
   if (currentMicros - imu_prev_time >= imu_dt) {
     state = STATE_SEND_IMU;
@@ -171,7 +186,7 @@ void sendCalibrationData()
   Serial.write((byte*)&cal_packet, sizeof(cal_packet));  // message
   Serial.write(END_BIT);                                 // end of message
 
-  state = STATE_DATA_STREAM;
+  state = STATE_IDLE;
 }
 
 void sendForceFlexData()
