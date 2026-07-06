@@ -50,6 +50,13 @@ struct __attribute__((__packed__)) ForceFlexData {
 const byte START_BIT = 0xAA;
 const byte END_BIT = 0x55;
 
+enum PacketType : uint8_t
+{
+  PACKET_IMU = 1,
+  PACKET_FF = 2,
+  PACKET_CALIB = 3
+};
+
 /*----- State Machine Setup -----*/
 enum SystemState
 {
@@ -106,7 +113,7 @@ void handleIdleState()
     if (incomingByte == 1) {
       CalibrationData imu_calibration_data;
       getCalibrationData(imu_calibration_data);
-      sendData(imu_calibration_data);
+      sendData(imu_calibration_data, PACKET_CALIB);
       return;
     }
 
@@ -127,14 +134,14 @@ void handleSensorStreamState()
   if (current_micros - imu_prev_time >= imu_dt) {
     IMUData imu_data;
     getIMUData(imu_data);
-    sendData(imu_data);
+    sendData(imu_data, PACKET_IMU);
     imu_prev_time += imu_dt;
   }
 
   if (current_micros - ff_prev_time >= ff_dt) {
     ForceFlexData ff_data;
     getForceFlexData(ff_data);
-    sendData(ff_data);
+    sendData(ff_data, PACKET_FF);
     ff_prev_time += ff_dt;
   }
 
@@ -147,9 +154,10 @@ void handleSensorStreamState()
 
 /*----- Send Function -----*/
 template <typename T>
-void sendData(const T& packet)
+void sendData(const T& packet, PacketType type)
 {
   Serial.write(START_BIT);                       // start of message
+  Serial.write(type);                            // packet type
   Serial.write((byte*)&packet, sizeof(packet));  // message
   Serial.write(END_BIT);                         // end of message
 }
