@@ -84,9 +84,6 @@ void setup(void) {
   delay(1000);
 
   bno.setExtCrystalUse(true);
-
-  imu_prev_time = micros();
-  ff_prev_time = micros();
 }
 
 void loop(void) {
@@ -96,6 +93,9 @@ void loop(void) {
       break;
 
     case STATE_DATA_STREAM:
+      imu_prev_time = micros();
+      ff_prev_time = micros();
+      
       handleSensorStream();
       break;
 
@@ -120,12 +120,12 @@ void idle()
     int incomingByte = Serial.read();
     if (incomingByte == 1) {
       state = STATE_SEND_CALIB;
-      return; // Interrupt everything to send calibration
+      return;
     }
 
     if (incomingByte == 2) {
       state = STATE_DATA_STREAM;
-      return; // Interrupt everything to send calibration
+      return;
     }
   }
 }
