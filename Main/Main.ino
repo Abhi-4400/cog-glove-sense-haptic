@@ -123,7 +123,7 @@ void handleIdleState()
 void handleSensorStreamState()
 {
   unsigned long current_micros = micros();
-  
+
   if (current_micros - imu_prev_time >= imu_dt) {
     IMUData imu_data;
     getIMUData(imu_data);
@@ -145,6 +145,7 @@ void handleSensorStreamState()
   }
 }
 
+/*----- Send Function -----*/
 template <typename T>
 void sendData(const T& packet)
 {
@@ -153,6 +154,7 @@ void sendData(const T& packet)
   Serial.write(END_BIT);                         // end of message
 }
 
+/*----- Sensor Read Functions -----*/
 void getIMUData(IMUData& imu_packet)
 {
   imu::Quaternion quat = bno.getQuat();
