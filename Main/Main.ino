@@ -58,7 +58,7 @@ enum SystemState
   STATE_SEND_FORCE_FLEX
 };
 
-uint8_t state = STATE_IDLE;
+SystemState state = STATE_IDLE;
 unsigned long imu_dt = 10000;  // us, 100 Hz
 unsigned long imu_prev_time = 0;
 unsigned long ff_dt = 1000;  // us, 1000 Hz
@@ -80,6 +80,9 @@ void setup(void) {
   delay(1000);
 
   bno.setExtCrystalUse(true);
+
+  imu_prev_time = micros();
+  ff_prev_time = micros();
 }
 
 void loop(void) {
@@ -164,7 +167,7 @@ void sendCalibrationData()
   cal_packet.accel = accelerometer;
   cal_packet.mag = magnetometer;
 
-  Serial.write(START_BIT_CALIB);                           // start of message
+  Serial.write(START_BIT_CALIB);                         // start of message
   Serial.write((byte*)&cal_packet, sizeof(cal_packet));  // message
   Serial.write(END_BIT);                                 // end of message
 
