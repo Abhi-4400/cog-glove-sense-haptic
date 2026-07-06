@@ -52,13 +52,13 @@ const byte END_BIT = 0x55;
 /*----- State Machine Setup -----*/
 enum SystemState
 {
-  STATE_IDLE,
+  STATE_DATA_STREAM,
   STATE_SEND_IMU,
   STATE_SEND_CALIB,
   STATE_SEND_FORCE_FLEX
 };
 
-SystemState state = STATE_IDLE;
+SystemState state = STATE_DATA_STREAM;
 unsigned long imu_dt = 10000;  // us, 100 Hz
 unsigned long imu_prev_time = 0;
 unsigned long ff_dt = 1000;  // us, 1000 Hz
@@ -87,8 +87,8 @@ void setup(void) {
 
 void loop(void) {
   switch (state) {
-    case STATE_IDLE:
-      handleIdleState();
+    case STATE_DATA_STREAM:
+      handleSensorStream();
       break;
 
     case STATE_SEND_IMU:  // Write IMU quaternion and acceleration data
@@ -106,7 +106,7 @@ void loop(void) {
 }
 
 /*----- State Handler Functions -----*/
-void handleIdleState()
+void handleSensorStream()
 {
   // 1. Check Serial input independently (highest priority command)
   if (Serial.available() > 0) {
@@ -153,7 +153,7 @@ void sendIMUData()
   Serial.write((byte*)&imu_packet, sizeof(imu_packet));  // message
   Serial.write(END_BIT);                                 // end of message
 
-  state = STATE_IDLE;
+  state = STATE_DATA_STREAM;
 }
 
 void sendCalibrationData()
@@ -171,7 +171,7 @@ void sendCalibrationData()
   Serial.write((byte*)&cal_packet, sizeof(cal_packet));  // message
   Serial.write(END_BIT);                                 // end of message
 
-  state = STATE_IDLE;
+  state = STATE_DATA_STREAM;
 }
 
 void sendForceFlexData()
@@ -194,5 +194,5 @@ void sendForceFlexData()
   Serial.write((byte*)&ff_packet, sizeof(ff_packet));  // message
   Serial.write(END_BIT);                               // end of message
 
-  state = STATE_IDLE;
+  state = STATE_DATA_STREAM;
 }
