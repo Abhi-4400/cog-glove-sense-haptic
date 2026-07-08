@@ -52,9 +52,17 @@ const byte END_BIT = 0x55;
 
 enum PacketType : uint8_t
 {
-  PACKET_IMU = 1,
-  PACKET_FF = 2,
-  PACKET_CALIB = 3
+  PACKET_IMU = 0,
+  PACKET_FF = 1,
+  PACKET_CALIB = 2
+};
+
+enum PCCommand : uint8_t
+{
+  RETURN = 0,
+  DEBUG = 1,
+  CALIBRATION = 2,
+  DATA_STREAM = 3
 };
 
 /*----- State Machine Setup -----*/
@@ -70,6 +78,8 @@ unsigned long imu_dt = 10000;  // us, 100 Hz
 unsigned long imu_prev_time = 0;
 unsigned long ff_dt = 1000;  // us, 1000 Hz
 unsigned long ff_prev_time = 0;
+unsigned long debug_dt = 500000;  // us, 0.2 Hz
+unsigned long debug_prev_time = 0;
 
 void setup(void) {
   Serial.begin(115200);
@@ -99,9 +109,9 @@ void loop(void) {
       handleSensorStreamState();
       break;
 
-    // case STATE_DEBUG:
-    //   handleDebug();
-    //   break;
+    case STATE_DEBUG:
+      handleDebug();
+      break;
   }
 }
 
@@ -110,14 +120,19 @@ void handleIdleState()
 {
   if (Serial.available() > 0) {
     int incomingByte = Serial.read();
-    if (incomingByte == 1) {
+    if (incomingByte == 0) {
+      debug_prev_time = micros();
+
+      state = STATE_DEBUG;
+      return;
+    }
+    else if (incomingByte == 1) {
       CalibrationData imu_calibration_data;
       getCalibrationData(imu_calibration_data);
       sendData(imu_calibration_data, PACKET_CALIB);
       return;
     }
-
-    if (incomingByte == 2) {
+    else if (incomingByte == 2) {
       imu_prev_time = micros();
       ff_prev_time = micros();
 
@@ -143,6 +158,32 @@ void handleSensorStreamState()
     getForceFlexData(ff_data);
     sendData(ff_data, PACKET_FF);
     ff_prev_time += ff_dt;
+  }
+
+  if (Serial.available() > 0) {
+    if (Serial.read() == 0) {
+      state = STATE_IDLE;
+    }
+  }
+}
+
+void handleDebug()
+{
+  if (micros() - debug_prev_time >= debug_dt)
+  {
+    CalibrationData calib_data;
+    getCalibrationData(calib_data);
+    sendData(calib_data, PACKET_CALIB);
+
+    IMUData imu_data;
+    getIMUData(imu_data);
+    sendData(imu_data, PACKET_IMU);
+    
+    ForceFlexData ff_data;
+    getForceFlexData(ff_data);
+    sendData(ff_data, PACKET_FF);
+
+    debug_prev_time += debug_dt;
   }
 
   if (Serial.available() > 0) {
