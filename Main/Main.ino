@@ -1,6 +1,7 @@
 #include <Wire.h>
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BNO055.h>
+#include <Adafruit_DRV2605.h>
 #include <utility/imumaths.h>
 
 /*----- IMU Setup -----*/
@@ -45,6 +46,32 @@ struct __attribute__((__packed__)) ForceFlexData {
   uint16_t xT, xI, xM, xR, xP;
 };
 
+/*----- Haptic Setup -----*/
+#define TCA9548A_ADDR 0x70
+#define NUM_HAPTICS 5
+
+const uint8_t HAPTIC_CHANNELS[NUM_HAPTICS] = {2, 3, 4, 5, 6};
+
+Adafruit_DRV2605 drv; 
+
+struct __attribute__((__packed__)) HapticCommand
+{
+  uint8_t driver;
+  uint8_t effect; 
+};
+
+void tcaSelect(uint8_t channel)
+{
+  if (channel > 7) return;
+  Wire1.beginTransmission(TCA9548A_ADDR);
+  Wire1.write(1 << channel);
+  Wire1.endTransmission();
+}
+
+bool receivingHaptic = false;
+unsigned long haptic_wait_start = 0;
+const unsigned long HAPTIC_WAIT_TIMEOUT_US = 5000;
+
 /*----- Communication Setup -----*/
 // Serial communication bits
 const byte START_BIT = 0xAA;
@@ -54,7 +81,8 @@ enum PacketType : uint8_t
 {
   PACKET_IMU = 0,
   PACKET_FF = 1,
-  PACKET_CALIB = 2
+  PACKET_CALIB = 2,
+  PACKET_HAPTIC = 3
 };
 
 enum PCCommand : uint8_t
@@ -87,6 +115,7 @@ void setup(void) {
   while (!Serial) delay(10);  // wait for serial port to open!
 
   Wire2.begin();
+  Wire1.begin();
 
   // Initialise BNO055
   if (!bno.begin()) {
@@ -97,6 +126,22 @@ void setup(void) {
   delay(1000);
 
   bno.setExtCrystalUse(true);
+
+  // Initialise Haptics
+  for (uint8_t i = 0; i < NUM_HAPTICS; i++)
+  {
+    tcaSelect(HAPTIC_CHANNELS[i]);
+    if (!drv.begin())
+    {
+      Serial.print("DRV2605 not detected on channel ");
+      Serial.println(HAPTIC_CHANNELS[i]);
+    }
+    else
+    {
+      drv.selectLibrary(1);               
+      drv.setMode(DRV2605_MODE_INTTRIG);  
+    }
+  }
 }
 
 void loop(void) {
@@ -161,8 +206,28 @@ void handleSensorStreamState()
   }
 
   if (Serial.available() > 0) {
-    if (Serial.read() == 0) {
+    // Peek at the byte first without consuming it
+    int incoming_byte = Serial.peek(); 
+    
+    if (incoming_byte == 0) {
+      Serial.read(); // Consume the byte
       state = STATE_IDLE;
+    }
+    else if (incoming_byte == 2) {
+      // Only read if the full haptic payload has arrived in the buffer
+      if (Serial.available() >= 1 + (int)sizeof(HapticCommand)) {
+        Serial.read(); // Consume the command byte (2)
+        
+        HapticCommand cmd;
+        Serial.readBytes((char*)&cmd, sizeof(cmd));
+
+        startHaptics(cmd);
+        sendData(cmd, PACKET_HAPTIC); // Corrected: Passed PACKET_HAPTIC
+      }
+    }
+    else {
+      // Clean up stray/unknown bytes so the buffer doesn't clog
+      Serial.read();
     }
   }
 }
@@ -243,4 +308,15 @@ void getForceFlexData(ForceFlexData& ff_packet)
   ff_packet.xM = analogRead(flexMiddle);
   ff_packet.xR = analogRead(flexRing);
   ff_packet.xP = analogRead(flexPinky);
+}
+
+void startHaptics(HapticCommand& cmd)
+{
+  if (cmd.driver < NUM_HAPTICS)
+  {
+    tcaSelect(HAPTIC_CHANNELS[cmd.driver]);
+    drv.setWaveform(0, cmd.effect); 
+    drv.setWaveform(1, 0);          
+    drv.go();
+  }
 }
