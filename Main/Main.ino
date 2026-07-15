@@ -76,7 +76,7 @@ enum SystemState
 SystemState state = STATE_IDLE;
 unsigned long imu_dt = 10000;  // us, 100 Hz
 unsigned long imu_prev_time = 0;
-unsigned long ff_dt = 1000;  // us, 1000 Hz
+unsigned long ff_dt = 5000;  // us, 200 Hz
 unsigned long ff_prev_time = 0;
 unsigned long debug_dt = 500000;  // us, 0.2 Hz
 unsigned long debug_prev_time = 0;
