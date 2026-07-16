@@ -90,7 +90,8 @@ enum PCCommand : uint8_t
   RETURN = 0,
   DEBUG = 1,
   CALIBRATION = 2,
-  DATA_STREAM = 3
+  DATA_STREAM = 3,
+  TRIGGER_HAPTIC = 4
 };
 
 /*----- State Machine Setup -----*/
@@ -165,19 +166,19 @@ void handleIdleState()
 {
   if (Serial.available() > 0) {
     int incomingByte = Serial.read();
-    if (incomingByte == 0) {
+    if (incomingByte == DEBUG) {
       debug_prev_time = micros();
 
       state = STATE_DEBUG;
       return;
     }
-    else if (incomingByte == 1) {
+    else if (incomingByte == CALIBRATION) {
       CalibrationData imu_calibration_data;
       getCalibrationData(imu_calibration_data);
       sendData(imu_calibration_data, PACKET_CALIB);
       return;
     }
-    else if (incomingByte == 2) {
+    else if (incomingByte == DATA_STREAM) {
       imu_prev_time = micros();
       ff_prev_time = micros();
 
@@ -209,11 +210,11 @@ void handleSensorStreamState()
     // Peek at the byte first without consuming it
     int incoming_byte = Serial.peek(); 
     
-    if (incoming_byte == 0) {
+    if (incoming_byte == RETURN) {
       Serial.read(); // Consume the byte
       state = STATE_IDLE;
     }
-    else if (incoming_byte == 2) {
+    else if (incoming_byte == TRIGGER_HAPTIC) {
       // Only read if the full haptic payload has arrived in the buffer
       if (Serial.available() >= 1 + (int)sizeof(HapticCommand)) {
         Serial.read(); // Consume the command byte (2)
@@ -222,7 +223,7 @@ void handleSensorStreamState()
         Serial.readBytes((char*)&cmd, sizeof(cmd));
 
         startHaptics(cmd);
-        sendData(cmd, PACKET_HAPTIC); // Corrected: Passed PACKET_HAPTIC
+        sendData(cmd, PACKET_HAPTIC);
       }
     }
     else {
@@ -252,7 +253,7 @@ void handleDebug()
   }
 
   if (Serial.available() > 0) {
-    if (Serial.read() == 0) {
+    if (Serial.read() == RETURN) {
       state = STATE_IDLE;
     }
   }
