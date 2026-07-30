@@ -4,6 +4,28 @@
 #include <Adafruit_DRV2605.h>
 #include <utility/imumaths.h>
 
+/*----- Communication Setup -----*/
+// Serial communication bits
+const byte START_BIT = 0xAA;
+const byte END_BIT = 0x55;
+
+enum PacketType : uint8_t
+{
+  PACKET_IMU = 0,
+  PACKET_FF = 1,
+  PACKET_CALIB = 2,
+  PACKET_HAPTIC = 3
+};
+
+enum PCCommand : uint8_t
+{
+  RETURN = 0,
+  DEBUG = 1,
+  CALIBRATION = 2,
+  DATA_STREAM = 3,
+  TRIGGER_HAPTIC = 4
+};
+
 /*----- IMU Setup -----*/
 // Set the delay between fresh samples=
 #define BNO055_SAMPLERATE_DELAY_MS (10)  // 100 Hz
@@ -71,28 +93,6 @@ void tcaSelect(uint8_t channel)
 bool receivingHaptic = false;
 unsigned long haptic_wait_start = 0;
 const unsigned long HAPTIC_WAIT_TIMEOUT_US = 5000;
-
-/*----- Communication Setup -----*/
-// Serial communication bits
-const byte START_BIT = 0xAA;
-const byte END_BIT = 0x55;
-
-enum PacketType : uint8_t
-{
-  PACKET_IMU = 0,
-  PACKET_FF = 1,
-  PACKET_CALIB = 2,
-  PACKET_HAPTIC = 3
-};
-
-enum PCCommand : uint8_t
-{
-  RETURN = 0,
-  DEBUG = 1,
-  CALIBRATION = 2,
-  DATA_STREAM = 3,
-  TRIGGER_HAPTIC = 4
-};
 
 /*----- State Machine Setup -----*/
 enum SystemState
